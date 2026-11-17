@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Admin • Castro Veículos</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <header>
+            <div class="nav">
+                <img src="logo.png" alt="">
+                <b style="color:#fff">Painel Administrativo</b>
+            </div>
+        </header>
+        <main>
+            <div id="login" class="box" style="max-width:380px;margin:40px auto">
+                <h2>Entrar</h2>
+                <label for="s">Senha</label>
+                <input id="s" type="password">
+                <br>
+                <br>
+                <button class="btn" id="go">Entrar</button>
+                <p id="le" class="no"></p>
+            </div>
+            <div id="app" class="hide">
+                <div class="tabs">
+                    <button class="btn" data-t="est">Estoque</button>
+                    <button class="btn gr" data-t="con">Contatos</button>
+                    <button class="btn gr" data-t="rel">Relatório Excel</button>
+                </div>
+                <section id="est">
+                    <div class="box">
+                        <h3>Adicionar veículo</h3>
+                        <div class="grid">
+                            <div>
+                                <label for="nm">Nome</label>
+                                <input id="nm">
+                            </div>
+                            <div>
+                                <label for="tp">Tipo</label>
+                                <select id="tp">
+                                    <option>Carro</option>
+                                    <option>Moto</option>
+                                    <option>Caminhão</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="vl">Valor (R$)</label>
+                                <input id="vl" type="number" step="0.01">
+                            </div>
+                            <div>
+                                <label for="an">Ano</label>
+                                <input id="an" type="number">
+                            </div>
+                            <div>
+                                <label for="cr">Cor</label>
+                                <input id="cr">
+                            </div>
+                            <div>
+                                <label for="fo">Fotos</label>
+                                <input id="fo" type="file" accept="image/*" multiple>
+                            </div>
+                        </div>
+                        <br>
+                        <button class="btn" id="add">Salvar veículo</button>
+                        <span id="am">
+                        </span>
+                    </div>
+                    <div class="box wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Foto</th>
+                                    <th>Veículo</th>
+                                    <th>Tipo</th>
+                                    <th>Valor</th>
+                                    <th>Ano</th>
+                                    <th>Cor</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="vb"></tbody>
+                        </table>
+                    </div>
+                </section>
+                <section id="con" class="hide">
+                    <div class="box wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Nome</th>
+                                    <th>Telefone</th>
+                                    <th>E-mail</th>
+                                    <th>Assunto</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cb"></tbody>
+                        </table>
+                    </div>
+                </section>
+                <section id="rel" class="hide">
+                    <div class="box">
+                        <p>Baixe uma planilha com abas de veículos vendidos, não vendidos e contatos.</p>
+                        <button class="btn" id="xl">Gerar Excel</button>
+                    </div>
+                </section>
+            </div>
+        </main>
+        <script>
+let tk=sessionStorage.getItem('tk');
+
+const H=()=>({Authorization:'Bearer '+tk});
+const J=()=>({...H(),'Content-Type':'application/json'});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const R=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+async function api(u,o={})
+    {const r=await fetch(u,o);
+    if(r.status===401){sessionStorage.clear();location.reload();
+    throw 0}return r}
+
+function mostrar()
+    {login.classList.add('hide');
+    app.classList.remove('hide');
+    veic();cont()}
+
+if(tk)mostrar();
+go.onclick=async()=>{const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({senha:s.value})});
+
+    if(r.ok)
+        {tk=(await r.json()).token;sessionStorage.setItem('tk',tk);mostrar()}
+    
+    else le.textContent='Senha incorreta'};
+
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{['est','con','rel'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==b.dataset.t));
+document.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('gr',x!==b))});
+async function veic(){const l=await (await api('/api/admin/veiculos',{headers:H()})).json();
+vb.innerHTML=l.map(v=>`<tr><td><img src="${v.fotos[0]||'logo.png'}" width="60"></td><td>${esc(v.nome)}</td><td>${esc(v.tipo)}</td><td>${R(v.valor)}</td><td>${esc(v.ano)}</td><td>${esc(v.cor)}</td>
+<td class="${v.vendido?'ok':'no'}">${v.vendido?'Vendido':'Não vendido'}</td><td><button class="btn sm" onclick="vv(${v.id},${v.vendido?0:1})">Marcar ${v.vendido?'não vendido':'vendido'}</button>
+<button class="btn sm gr" onclick="del(${v.id})">Excluir</button></td></tr>`).join('')}
+async function vv(id,v){await api(`/api/admin/veiculos/${id}/vendido`,{method:'PUT',headers:J(),body:JSON.stringify({vendido:v})});veic()}
+async function del(id){if(confirm('Excluir este veículo?')){await api('/api/admin/veiculos/'+id,{method:'DELETE',headers:H()});veic()}}
+add.onclick=async()=>{const f=new FormData();[['nome',nm],['tipo',tp],['valor',vl],['ano',an],['cor',cr]].forEach(([k,e])=>f.append(k,e.value));
+[...fo.files].forEach(x=>f.append('fotos',x));
+const r=await api('/api/admin/veiculos',{method:'POST',headers:H(),body:f});const j=await r.json();
+am.textContent=r.ok?'Salvo!':j.erro;if(r.ok){[nm,vl,an,cr,fo].forEach(e=>e.value='');veic()}};
+async function cont(){const l=await (await api('/api/admin/contatos',{headers:H()})).json();
+cb.innerHTML=l.map(c=>`<tr><td>${esc(c.criado_em)}</td><td>${esc(c.nome)}</td><td>${esc(c.telefone)}</td><td>${esc(c.email)}</td><td>${esc(c.assunto)}</td>
+<td class="${c.vendido?'ok':'no'}">${c.vendido?'Vendido':'Não vendido'}</td><td><button class="btn sm" onclick="cv(${c.id},${c.vendido?0:1})">Marcar ${c.vendido?'não vendido':'vendido'}</button></td></tr>`).join('')}
+async function cv(id,v){await api(`/api/admin/contatos/${id}/vendido`,{method:'PUT',headers:J(),body:JSON.stringify({vendido:v})});cont()}
+xl.onclick=async()=>{const r=await api('/api/admin/excel',{headers:H()});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='castro-relatorio.xlsx';a.click()};
+        </script>
+    </body>
+</html>
